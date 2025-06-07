@@ -18,7 +18,6 @@ const candidateSchema = z.object({
 
 const scoreRequestSchema = z.object({
   job_description: z.string().max(200),
-  candidates: z.array(candidateSchema),
 })
 
 export async function POST(req: NextRequest) {
@@ -26,10 +25,25 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const validated: ScoreRequest = scoreRequestSchema.parse(body)
 
+    // Fetch candidates.json from the public directory via HTTP
+    const baseUrl =
+      process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const candidatesRes = await fetch(`${baseUrl}/candidates.json`)
+    if (!candidatesRes.ok) {
+      throw new Error('Failed to fetch candidates.json')
+    }
+    const allCandidates = await candidatesRes.json()
+    const candidates = allCandidates.slice(0, 10)
+
     const fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(validated),
+      body: JSON.stringify({
+        job_description: validated.job_description,
+        candidates,
+      }),
     })
 
     const data: ScoredCandidate[] = await fastApiRes.json()

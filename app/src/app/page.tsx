@@ -19,14 +19,10 @@ export default function HomePage() {
     setResults(null)
 
     try {
-      const candidatesRes = await fetch('/candidates.json')
-      const allCandidates = await candidatesRes.json()
-      const candidates = allCandidates.slice(0, 10)
-
       const res = await fetch('/api/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_description: jobDescription, candidates })
+        body: JSON.stringify({ job_description: jobDescription })
       })
 
       if (!res.ok) throw new Error('Failed to fetch scores')

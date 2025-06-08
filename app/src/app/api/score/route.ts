@@ -6,9 +6,10 @@ import type { components } from '@/types/fastapi'
 
 const BACKEND_URL = process.env.LLM_BACKEND_URL || 'http://localhost:8000'
 
-// Use Vercel KV for caching
-import { kv } from '@vercel/kv'
+import Redis from 'ioredis'
 const CACHE_TTL_SECONDS = 600 // 10 minutes
+
+const redis = new Redis(process.env.REDIS_URL || '')
 
 type ScoreRequest = z.infer<typeof scoreRequestSchema>
 type ScoredCandidate = components['schemas']['ScoredCandidate']
@@ -33,10 +34,11 @@ export async function POST(req: NextRequest) {
     // Use JD as cache key (can hash if needed, but JD is short)
     const cacheKey = `score:${jd}`
 
-    // Check Vercel KV cache
-    const cached = await kv.get(cacheKey)
+    // Check Redis cache
+    const cached = await redis.get(cacheKey)
     if (cached) {
-      return NextResponse.json(cached, { status: 200 })
+      // Redis stores strings, so parse the JSON
+      return NextResponse.json(JSON.parse(cached), { status: 200 })
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
@@ -61,8 +63,8 @@ export async function POST(req: NextRequest) {
     const data: ScoredCandidate[] = await fastApiRes.json()
     const sorted = [...data].sort((a, b) => b.score - a.score)
 
-    // Cache the result in Vercel KV for 10 minutes
-    await kv.set(cacheKey, sorted, { ex: CACHE_TTL_SECONDS })
+    // Cache the result in Redis for 10 minutes
+    await redis.set(cacheKey, JSON.stringify(sorted), 'EX', CACHE_TTL_SECONDS)
 
     return NextResponse.json(sorted, { status: fastApiRes.status })
   } catch (err) {

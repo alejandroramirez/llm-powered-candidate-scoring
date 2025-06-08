@@ -7,8 +7,8 @@ import type { components } from '@/types/fastapi'
 const BACKEND_URL = process.env.LLM_BACKEND_URL || 'http://localhost:8000'
 
 type ScoreRequest = z.infer<typeof scoreRequestSchema>
-
 type ScoredCandidate = components['schemas']['ScoredCandidate']
+type Candidate = components['schemas']['Candidate']
 
 const candidateSchema = z.object({
   id: z.string(),
@@ -25,16 +25,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const validated: ScoreRequest = scoreRequestSchema.parse(body)
 
-    // Fetch candidates.json from the public directory via HTTP
     const baseUrl =
       process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+
     const candidatesRes = await fetch(`${baseUrl}/candidates.json`)
     if (!candidatesRes.ok) {
       throw new Error('Failed to fetch candidates.json')
     }
-    const allCandidates = await candidatesRes.json()
+
+    const allCandidates: Candidate[] = await candidatesRes.json()
     const candidates = allCandidates.slice(0, 10)
 
     const fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
@@ -47,8 +48,9 @@ export async function POST(req: NextRequest) {
     })
 
     const data: ScoredCandidate[] = await fastApiRes.json()
+    const sorted = [...data].sort((a, b) => b.score - a.score)
 
-    return NextResponse.json(data, { status: fastApiRes.status })
+    return NextResponse.json(sorted, { status: fastApiRes.status })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ message: 'Validation failed', errors: err.errors }, { status: 400 })

@@ -19,6 +19,7 @@
 
 # production
 /build
+/public/candidates.json
 
 # misc
 .DS_Store

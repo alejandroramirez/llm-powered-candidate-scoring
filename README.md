@@ -1,17 +1,35 @@
 # LLM-Powered Candidate Scoring System
 
-This project allows recruiters to submit a job description and receive a ranked list of top candidates based on a preloaded database, scored using an LLM via a FastAPI backend.
+This project enables recruiters to submit a job description and receive a scored list of candidates powered by an LLM (OpenAI) via a FastAPI backend. The frontend is built with Next.js 15 and deployed to Vercel, while the backend is deployed to Fly.io.
+
+![CI](https://github.com/alejandroramirez/llm-powered-candidate-scoring/actions/workflows/ci.yml/badge.svg)
 
 ---
 
 ## 📁 Project Structure
 
 ```
-/llm-api          → FastAPI backend for LLM scoring
-/app              → Next.js frontend and API
-  ├── /public     → Contains preprocessed candidates.json
-  ├── /assets     → Raw CSV candidate data
-  └── /scripts    → Build-time processing script
+.
+├── README.md
+├── TECHNICAL_REPORT.md
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── app/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── README.md
+│   ├── assets/
+│   ├── public/
+│   ├── scripts/
+│   └── src/
+├── llm/
+│   ├── main.py
+│   ├── models.py
+│   ├── requirements.txt
+│   ├── prompt_manager.py
+│   ├── test_main.py
+│   └── prompts/
 ```
 
 ---
@@ -21,43 +39,50 @@ This project allows recruiters to submit a job description and receive a ranked 
 ### 1. Install Dependencies
 
 ```bash
+cd app
 npm install
 ```
 
 ### 2. Preprocess Candidate Data
 
-This happens automatically on build, but you can also run it manually:
+This runs automatically on build, but you can run it manually:
 
 ```bash
 npm run prepare:candidates
 ```
 
-This reads `assets/candidates.csv`, normalizes and deduplicates entries, and outputs `public/candidates.json`.
+This reads `assets/candidates.csv`, normalizes and deduplicates entries, and generates `public/candidates.json`.
 
-### 3. Build Frontend
+### 3. Generate API Types from FastAPI Spec
+
+To keep your frontend in sync with the backend’s OpenAPI schema, you can generate TypeScript types:
 
 ```bash
-npm run build
+# Make sure the FastAPI server is running at http://localhost:8000
+cd app
+npm run generate:types
 ```
 
-To preview output before building:
+This will create the file:
 
-```bash
-npm run preview:candidates
+```
+app/src/types/fastapi.d.ts
 ```
 
 ---
 
-## 🌐 Running Locally
+## 🚀 Running Locally
 
-### FastAPI Backend (required for scoring)
+### Backend (FastAPI)
 
 ```bash
-cd llm-api
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd llm
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+fastapi dev
 ```
 
-### Next.js App
+### Frontend (Next.js)
 
 ```bash
 cd app
@@ -68,25 +93,47 @@ Make sure the FastAPI backend is running at `http://localhost:8000`.
 
 ---
 
-## 🌟 Environment Variables
+## 🌐 Environment Variables
 
-Create a `.env.local` file in `/app`:
+### Backend: `llm/.env`
+
+```env
+LLM_API_KEY=your_openai_key
+LLM_BACKEND_MODEL=gpt-4.1-nano
+```
+
+### Frontend: `app/.env.local`
 
 ```env
 LLM_BACKEND_URL=http://localhost:8000
+REDIS_URL=redis://localhost:6379
 ```
 
 ---
 
 ## 🧪 Testing
 
-TBD – add Jest tests for prompt construction, parsing, and API integration.
+### Backend
+
+```bash
+cd llm
+pytest -sv
+```
+
+### Frontend
+
+```bash
+cd app
+npm test
+```
+
+Tests are automatically run on push via GitHub Actions.
 
 ---
 
 ## 🔍 Candidate Format
 
-The preprocessed candidate file (`candidates.json`) contains objects with:
+The preprocessed `candidates.json` file contains:
 
 ```ts
 interface Candidate {
@@ -99,22 +146,23 @@ interface Candidate {
 
 ---
 
-## 🧱 Built With
+## ⚙️ Built With
 
-* Next.js 15 (TypeScript)
-* FastAPI (Python)
-* OpenAI (LLM Scoring)
-* CSV + HTML cleaning utilities
+* FastAPI (Python 3.11)
+* OpenAI (via `openai.AsyncOpenAI`)
+* Next.js 15 (React, TypeScript)
+* Tailwind CSS
+* Redis (caching)
+* GitHub Actions (CI/CD)
+* Pytest (backend)
+* Vitest or Jest (frontend)
 
 ---
 
 ## 📦 Deployment
 
-* Frontend can be deployed on Vercel
-* FastAPI backend must be deployed separately (e.g. Render, Fly.io)
-
----
-
-## 📄 License
-
-MIT
+* **Frontend &**: Deployed on Vercel
+* **Backend**: Deployed on Fly.io
+* **Redis**: Upstage via Vercel
+* **LLM**: OpenAI API (gpt-4.1-nano)
+* **CI/CD**: GitHub Actions

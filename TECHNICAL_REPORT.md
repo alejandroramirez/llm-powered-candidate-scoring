@@ -14,8 +14,8 @@ This project is composed of two main parts:
 2. **Backend Scoring API (FastAPI + OpenAI)**
 
    * Receives job description and candidates
-   * Constructs a prompt with few-shot examples
-   * Sends prompt to OpenAI API
+   * Constructs a prompt with few-shot examples (loaded from [`prompts/fewshot.json`](llm/prompts/fewshot.json))
+   * Sends prompt to OpenAI API (model configurable via `LLM_BACKEND_MODEL` environment variable, default: gpt-4.1-nano)
    * Parses JSON response
    * Returns list of scored candidates
 
@@ -31,11 +31,13 @@ User → [Next.js API Route] → [FastAPI] → [OpenAI]
 
 * **System Message**:
 
-  ```
-  You are a recruiter assistant evaluating candidates for a job.
-  Return a JSON array with id, name, score (0–100), and 2–3 bullet-point highlights.
-  Only return JSON.
-  ```
+  - Loaded from [`prompts/system.txt`](llm/prompts/system.txt)
+  - Example:
+    ```
+    You are a recruiter assistant evaluating candidates for a job.
+    Return a JSON array with id, name, score (0–100), and 2–3 bullet-point highlights.
+    Only return JSON.
+    ```
 
 * **User Message**:
 
@@ -51,8 +53,8 @@ User → [Next.js API Route] → [FastAPI] → [OpenAI]
       "name": "John Doe",
       "score": 87,
       "highlights": ["Experience with Go", "Worked in a startup"]
-    },
-    ...
+    }
+    // ...more candidates
   ]
   ```
 
@@ -96,9 +98,16 @@ User → [Next.js API Route] → [FastAPI] → [OpenAI]
 interface Candidate {
   id: string;
   name: string;
-  jobTitle: string;
+  jobTitle: string; // Present in frontend data only
   resume: string;
 }
+
+// Backend API Candidate model (llm/models.py):
+// {
+//   id: string;
+//   name: string;
+//   resume: string;
+// }
 ```
 
 `resume` is a flattened string built from all fields (questions included only if both Q + A are present).

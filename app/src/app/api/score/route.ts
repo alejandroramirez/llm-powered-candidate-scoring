@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const allCandidates: Candidate[] = await candidatesRes.json()
-    const candidates = allCandidates.slice(0, 10)
+    const candidates = allCandidates.slice(0, 5)
 
     const fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
       method: 'POST',

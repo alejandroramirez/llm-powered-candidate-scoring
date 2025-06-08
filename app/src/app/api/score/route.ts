@@ -61,6 +61,13 @@ export async function POST(req: NextRequest) {
 
     const json = await fastApiRes.json()
 
+    // show the raw response for debugging
+    console.log('FastAPI response:', json)
+    if (!fastApiRes.ok) {
+      console.error('FastAPI call failed with status:', fastApiRes.status, 'Response:', json)
+      return NextResponse.json({ message: `Scoring backend returned error: ${fastApiRes.status}` }, { status: fastApiRes.status })
+    }
+
     if (!Array.isArray(json)) {
       console.error('Expected an array but got:', json)
       return NextResponse.json({ message: 'Invalid response from scoring backend' }, { status: 500 })

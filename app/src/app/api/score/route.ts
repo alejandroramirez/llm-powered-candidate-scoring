@@ -6,13 +6,9 @@ import type { components } from '@/types/fastapi'
 
 const BACKEND_URL = process.env.LLM_BACKEND_URL || 'http://localhost:8000'
 
-// Simple in-memory cache for 10 minutes per JD
-type CacheEntry = {
-  data: any
-  timestamp: number
-}
-const CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
-const jdCache: Map<string, CacheEntry> = new Map()
+// Use Vercel KV for caching
+import { kv } from '@vercel/kv'
+const CACHE_TTL_SECONDS = 600 // 10 minutes
 
 type ScoreRequest = z.infer<typeof scoreRequestSchema>
 type ScoredCandidate = components['schemas']['ScoredCandidate']
@@ -34,12 +30,13 @@ export async function POST(req: NextRequest) {
     const validated: ScoreRequest = scoreRequestSchema.parse(body)
     const jd = validated.job_description
 
-    // Check cache
-    const cacheEntry = jdCache.get(jd)
-    const now = Date.now()
-    if (cacheEntry && now - cacheEntry.timestamp < CACHE_TTL_MS) {
-      // Return cached response
-      return NextResponse.json(cacheEntry.data, { status: 200 })
+    // Use JD as cache key (can hash if needed, but JD is short)
+    const cacheKey = `score:${jd}`
+
+    // Check Vercel KV cache
+    const cached = await kv.get(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached, { status: 200 })
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
@@ -64,8 +61,8 @@ export async function POST(req: NextRequest) {
     const data: ScoredCandidate[] = await fastApiRes.json()
     const sorted = [...data].sort((a, b) => b.score - a.score)
 
-    // Cache the result
-    jdCache.set(jd, { data: sorted, timestamp: now })
+    // Cache the result in Vercel KV for 10 minutes
+    await kv.set(cacheKey, sorted, { ex: CACHE_TTL_SECONDS })
 
     return NextResponse.json(sorted, { status: fastApiRes.status })
   } catch (err) {

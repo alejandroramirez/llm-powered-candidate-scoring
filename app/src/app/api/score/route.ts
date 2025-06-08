@@ -30,10 +30,17 @@ export async function POST(req: NextRequest) {
         ? `https://${process.env.VERCEL_URL}`
         : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
 
-    const candidatesRes = await fetch(`${baseUrl}/candidates.json`)
-    if (!candidatesRes.ok) {
-      throw new Error('Failed to fetch candidates.json')
+    let candidatesRes;
+    try {
+      candidatesRes = await fetch(`${baseUrl}/candidates.json`)
+    } catch (err) {
+      console.error('Error fetching candidates.json: %o', err)
+      return NextResponse.json({ message: err }, { status: 500 })
     }
+
+    // if (!candidatesRes.ok) {
+    //   throw new Error('Failed to fetch candidates.json')
+    // }
 
     const allCandidates: Candidate[] = await candidatesRes.json()
     const candidates = allCandidates.slice(0, 10)

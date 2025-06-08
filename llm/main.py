@@ -1,37 +1,19 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 
-from fastapi.middleware.cors import CORSMiddleware
+from models import Candidate, ScoreRequest, ScoredCandidate
+from prompt_manager import score_candidates as llm_score_candidates  # your custom function
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # or ["*"] for all
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ------------------
-# Data Models
-# ------------------
-
-class Candidate(BaseModel):
-    id: str
-    name: str
-    resume: str
-
-class ScoreRequest(BaseModel):
-    job_description: str
-    candidates: List[Candidate]
-
-class ScoredCandidate(BaseModel):
-    id: str
-    name: str
-    score: int
-    highlights: List[str]
 
 # ------------------
 # Routes
@@ -46,14 +28,8 @@ def healthz():
     return {"status": "ok"}
 
 @app.post("/api/score", response_model=List[ScoredCandidate])
-def score_candidates(payload: ScoreRequest):
-    # Placeholder scoring logic (to be replaced with LLM integration)
-    dummy_results = [
-        ScoredCandidate(
-            id=c.id,
-            name=c.name,
-            score=80 + i % 10,
-            highlights=["Example highlight"]
-        ) for i, c in enumerate(payload.candidates[:30])
-    ]
-    return dummy_results
+async def score_candidates_api(payload: ScoreRequest):
+    try:
+        return await llm_score_candidates(payload.job_description, payload.candidates)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

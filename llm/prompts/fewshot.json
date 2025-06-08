@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "{\n  \"job_description\": \"Looking for a front-end developer with React and TypeScript experience.\",\n  \"candidates\": [\n    {\n      \"id\": \"dummy1\",\n      \"name\": \"Alice Sample\",\n      \"resume\": \"Experienced developer skilled in React, TypeScript, and modern frontend tools. Built several production-grade SPAs.\"\n    },\n    {\n      \"id\": \"dummy2\",\n      \"name\": \"Bob Test\",\n      \"resume\": \"Back-end focused engineer with Java and Spring Boot experience. Little exposure to frontend development.\"\n    }\n  ]\n}"
+  },
+  {
+    "role": "assistant",
+    "content": "[\n  {\n    \"id\": \"dummy1\",\n    \"name\": \"Alice Sample\",\n    \"score\": 92,\n    \"highlights\": [\n      \"Strong experience with React\",\n      \"Used TypeScript extensively\",\n      \"Built production-grade SPAs\"\n    ]\n  },\n  {\n    \"id\": \"dummy2\",\n    \"name\": \"Bob Test\",\n    \"score\": 40,\n    \"highlights\": [\n      \"Primarily backend-focused\",\n      \"No mention of React or TypeScript\"\n    ]\n  }\n]"
+  }
+]

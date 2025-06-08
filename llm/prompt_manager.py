@@ -13,9 +13,9 @@ load_dotenv()
 
 logger = logging.getLogger("prompt_manager")
 
-client = AsyncOpenAI(api_key=os.getenv("LLM_API_KEY"))
-
-logger = logging.getLogger(__name__)
+# Lazy client getter to avoid initializing at module load time
+def get_openai_client() -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=os.getenv("LLM_API_KEY"))
 
 # Paths
 PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -54,6 +54,7 @@ async def score_candidates(job_description: str, candidates: List[Candidate]) ->
     try:
         t2 = time.perf_counter()
         logger.debug("score_candidates: calling OpenAI API")
+        client = get_openai_client()
         response = await client.chat.completions.create(
             model=os.getenv("LLM_BACKEND_MODEL", "gpt-4.1-nano"),
             messages=messages,

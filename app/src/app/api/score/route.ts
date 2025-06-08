@@ -53,8 +53,14 @@ export async function POST(req: NextRequest) {
       }),
     })
 
-    const data: ScoredCandidate[] = await fastApiRes.json()
-    const sorted = [...data].sort((a, b) => b.score - a.score)
+    const json = await fastApiRes.json()
+
+    if (!Array.isArray(json)) {
+      console.error('Expected an array but got:', json)
+      return NextResponse.json({ message: 'Invalid response from scoring backend' }, { status: 500 })
+    }
+
+    const sorted = [...json].sort((a, b) => b.score - a.score)
 
     return NextResponse.json(sorted, { status: fastApiRes.status })
   } catch (err) {

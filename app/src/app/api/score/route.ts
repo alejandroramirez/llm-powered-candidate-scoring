@@ -25,10 +25,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const validated: ScoreRequest = scoreRequestSchema.parse(body)
 
-    const baseUrl =
-      process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    console.log('VERCEL_URL', process.env.VERCEL_URL);
+
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
 
     let candidatesRes;
     try {

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, constr
 from typing import List
 
 class Candidate(BaseModel):
@@ -7,7 +7,7 @@ class Candidate(BaseModel):
     resume: str
 
 class ScoreRequest(BaseModel):
-    job_description: str
+    job_description: constr(max_length=200)
     candidates: List[Candidate]
 
 class ScoredCandidate(BaseModel):

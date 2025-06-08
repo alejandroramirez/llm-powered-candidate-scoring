@@ -1,9 +1,27 @@
 import pytest
 from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
+from unittest.mock import AsyncMock, patch
+
 from main import app
 
 transport = ASGITransport(app=app)
+
+# Dummy data to mock LLM response
+mock_scored_candidates = [
+    {
+        "id": "1",
+        "name": "Jane Doe",
+        "score": 95,
+        "highlights": ["Strong React experience"]
+    },
+    {
+        "id": "2",
+        "name": "John Smith",
+        "score": 70,
+        "highlights": ["Some frontend exposure"]
+    },
+]
 
 
 @pytest.mark.asyncio
@@ -15,7 +33,10 @@ async def test_healthz():
 
 
 @pytest.mark.asyncio
-async def test_score_candidates_valid():
+@patch("main.llm_score_candidates", new_callable=AsyncMock)
+async def test_score_candidates_valid(mock_llm):
+    mock_llm.return_value = mock_scored_candidates
+
     payload = {
         "job_description": "Looking for a React developer with 3 years of experience.",
         "candidates": [
@@ -34,8 +55,9 @@ async def test_score_candidates_valid():
 
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.post("/api/score", json=payload)
+
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    assert response.json() == mock_scored_candidates
 
 
 @pytest.mark.asyncio
@@ -55,4 +77,4 @@ async def test_invalid_job_description_length():
 
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.post("/api/score", json=payload)
-    assert response.status_code == 422 or response.status_code == 400
+    assert response.status_code in (400, 422)

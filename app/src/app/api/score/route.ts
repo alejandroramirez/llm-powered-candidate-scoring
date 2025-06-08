@@ -44,14 +44,20 @@ export async function POST(req: NextRequest) {
     const allCandidates: Candidate[] = await candidatesRes.json()
     const candidates = allCandidates.slice(0, 10)
 
-    const fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
+    let fastApiRes;
+    try{
+      fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        job_description: validated.job_description,
-        candidates,
-      }),
-    })
+          job_description: validated.job_description,
+          candidates,
+        }),
+      })
+    } catch (err) {
+      console.error('Error calling FastAPI:', err)
+      return NextResponse.json({ message: `Failed to call scoring backend ${BACKEND_URL}/api/score` }, { status: 500 })
+    }
 
     const json = await fastApiRes.json()
 

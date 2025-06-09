@@ -48,88 +48,11 @@ export async function POST(req: NextRequest) {
 			CACHE_TTL_SECONDS,
 		);
 
-		// Fire and forget async job
-		(async () => {
-			try {
-				const baseUrl =
-					process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-				const candidatesRes = await fetch(`${baseUrl}/candidates.json`);
-				if (!candidatesRes.ok) {
-					throw new Error("Failed to fetch candidates.json");
-				}
-
-				const allCandidates: Candidate[] = await candidatesRes.json();
-				const batchSize = 10;
-				const total = allCandidates.length;
-				let processed = 0;
-				let allResults: ScoredCandidate[] = [];
-
-				for (let i = 0; i < total; i += batchSize) {
-					const batch = allCandidates.slice(i, i + batchSize);
-
-					const fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({
-							job_description: jd,
-							candidates: batch,
-						}),
-					});
-
-					if (!fastApiRes.ok) {
-						throw new Error("FastAPI scoring failed");
-					}
-
-					const batchResults: ScoredCandidate[] = await fastApiRes.json();
-					allResults = allResults.concat(batchResults);
-					processed += batch.length;
-
-					const sorted = [...allResults].sort((a, b) => b.score - a.score);
-
-					// Update job state in Redis
-					await redis.set(
-						jobKey,
-						JSON.stringify({
-							progress: processed,
-							total,
-							results: sorted,
-							done: false,
-						}),
-						"EX",
-						CACHE_TTL_SECONDS,
-					);
-				}
-
-				const finalSorted = [...allResults].sort((a, b) => b.score - a.score);
-
-				await redis.set(
-					jobKey,
-					JSON.stringify({
-						progress: total,
-						total,
-						results: finalSorted,
-						done: true,
-					}),
-					"EX",
-					CACHE_TTL_SECONDS,
-				);
-			} catch (err) {
-				await redis.set(
-					jobKey,
-					JSON.stringify({
-						progress: 0,
-						total: 0,
-						results: [],
-						done: true,
-						error: err instanceof Error ? err.message : "Unknown error",
-					}),
-					"EX",
-					CACHE_TTL_SECONDS,
-				);
-			}
-		})();
-
-		return NextResponse.json({ jobId }, { status: 202 });
+		// Return jobId immediately; background job will run in `after`
+		return NextResponse.json(
+			{ jobId, jobKey, job_description: jd },
+			{ status: 202 },
+		);
 	} catch (err) {
 		if (err instanceof z.ZodError) {
 			return NextResponse.json(
@@ -170,5 +93,138 @@ export async function DELETE(req: NextRequest) {
 			{ message: "Internal Server Error" },
 			{ status: 500 },
 		);
+	}
+}
+
+// Next.js App Router "after" function for background job
+export async function after(request: NextRequest, response: Response) {
+	try {
+		// Try to get jobId, jobKey, and job_description from response or request
+		let jobId: string | undefined;
+		let jobKey: string | undefined;
+		let job_description: string | undefined;
+
+		// Try to get from response body (if available)
+		try {
+			const cloned = response.clone();
+			const data = await cloned.json();
+			jobId = data.jobId;
+			jobKey = data.jobKey;
+			job_description = data.job_description;
+		} catch {
+			// fallback: try to parse from request
+			const body = await request.json().catch(() => undefined);
+			if (body && typeof body.job_description === "string") {
+				job_description = body.job_description;
+			}
+			// Try to get jobId from URL or fallback
+			const url = new URL(request.url);
+			jobId = url.searchParams.get("jobId") || undefined;
+			if (jobId) {
+				jobKey = `scorejob:${jobId}`;
+			}
+		}
+
+		if (!jobId || !jobKey || !job_description) {
+			console.error("Missing jobId, jobKey, or job_description in after()");
+			return;
+		}
+
+		const jd = job_description;
+
+		const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+		const candidatesRes = await fetch(`${baseUrl}/candidates.json`);
+		if (!candidatesRes.ok) {
+			throw new Error("Failed to fetch candidates.json");
+		}
+
+		const allCandidates: Candidate[] = await candidatesRes.json();
+		const batchSize = 10;
+		const total = allCandidates.length;
+		let processed = 0;
+		let allResults: ScoredCandidate[] = [];
+
+		for (let i = 0; i < total; i += batchSize) {
+			const batch = allCandidates.slice(i, i + batchSize);
+
+			const fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					job_description: jd,
+					candidates: batch,
+				}),
+			});
+
+			if (!fastApiRes.ok) {
+				throw new Error("FastAPI scoring failed");
+			}
+
+			const batchResults: ScoredCandidate[] = await fastApiRes.json();
+			allResults = allResults.concat(batchResults);
+			processed += batch.length;
+
+			const sorted = [...allResults].sort((a, b) => b.score - a.score);
+
+			// Update job state in Redis
+			await redis.set(
+				jobKey,
+				JSON.stringify({
+					progress: processed,
+					total,
+					results: sorted,
+					done: false,
+				}),
+				"EX",
+				CACHE_TTL_SECONDS,
+			);
+		}
+
+		const finalSorted = [...allResults].sort((a, b) => b.score - a.score);
+
+		await redis.set(
+			jobKey,
+			JSON.stringify({
+				progress: total,
+				total,
+				results: finalSorted,
+				done: true,
+			}),
+			"EX",
+			CACHE_TTL_SECONDS,
+		);
+	} catch (err) {
+		// Try to get jobKey for error reporting
+		let jobKey: string | undefined;
+		try {
+			const cloned = response.clone();
+			const data = await cloned.json();
+			jobKey = data.jobKey;
+		} catch {}
+		if (!jobKey) {
+			try {
+				const body = await request.json().catch(() => undefined);
+				const url = new URL(request.url);
+				const jobId = url.searchParams.get("jobId") || undefined;
+				if (jobId) {
+					jobKey = `scorejob:${jobId}`;
+				}
+			} catch {}
+		}
+		if (jobKey) {
+			await redis.set(
+				jobKey,
+				JSON.stringify({
+					progress: 0,
+					total: 0,
+					results: [],
+					done: true,
+					error: err instanceof Error ? err.message : "Unknown error",
+				}),
+				"EX",
+				CACHE_TTL_SECONDS,
+			);
+		}
+		console.error("Error in after():", err);
 	}
 }

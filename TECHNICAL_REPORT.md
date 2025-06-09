@@ -13,14 +13,12 @@ This change ensures compatibility with serverless deployments and improves relia
 This project consists of two major components:
 
 1. **Frontend (Next.js 15)**
-
    * Accepts job descriptions from users.
    * Loads and filters preprocessed candidate data.
    * Sends candidates in batches to the backend for scoring.
    * Displays ranked results (top 30).
 
 2. **Backend (FastAPI + OpenAI)**
-
    * Accepts job descriptions and candidate data.
    * Constructs a few-shot prompt using preloaded examples and context.
    * Sends prompt to OpenAI for scoring.
@@ -59,72 +57,72 @@ Includes the job description followed by a batch of 10 candidate summaries.
 ]
 ```
 
+## Requirements Coverage Table
+
+| Requirement                                           | Status   |
+|-------------------------------------------------------|----------|
+| Submit job description                                | Covered  |
+| Score candidates using OpenAI                         | Covered  |
+| Display ranked list of top 30 candidates              | Covered  |
+| Batch processing (10 per request)                     | Covered  |
+| Cache progress and results using Redis                | Covered  |
+| Show scoring progress while results arrive            | Covered  |
+| Store frontend candidate data in JSON format          | Covered  |
+| Integrate backend types via OpenAPI schema            | Covered  |
+| Provide CI pipeline for both frontend and backend     | Covered  |
+| Serverless compatibility for all routes               | Covered  |
+| Rate limiting for calls to the api/score endpoint     | Covered  |
+
 ## Challenges Encountered
 
 ### Serverless Compatibility
-
-* **No persistent background processes**: Vercel serverless functions terminate after returning a response.
-* **Solution**: Moved background logic to `after()` to ensure async processing occurs post-response.
-* **Global variables and timers**: Avoided use of `setTimeout` or global state for job orchestration.
-* **Execution limits**: Redis is used to persist job state across invocations; the system is designed to work under cold starts and short-lived executions.
+* Vercel functions terminate after response.
+* Used `after()` for background job orchestration.
+* Avoided timers/global state.
+* Redis used for state management.
 
 ### Redis Caching and Sync
-
-* Redis is used to track job progress and cache scoring results.
-* TTL was applied to limit stale data, and Redis keys were updated atomically with each processed batch.
-
-## API Score Route Refactor for Serverless Compatibility
-
-The `app/src/app/api/score/route.ts` was refactored to use the Next.js App Router `after` API for Vercel serverless compatibility. The POST handler now immediately returns a response with a job ID and schedules the background scoring job using the `after` function imported from `next/server`. This ensures the background job runs after the response is sent, following the recommended pattern for serverless environments.
-
-The background job fetches candidates, batches them, calls the FastAPI scoring endpoint, and updates the job progress in Redis. Error handling is included to update Redis with error states if the job fails.
-
-This approach replaces the previous "fire and forget" async IIFE pattern, which was incompatible with serverless deployments.
+* Atomic Redis key updates per batch.
+* TTLs applied to prevent stale data.
 
 ### Batch Processing Delays
-
-* Each LLM scoring batch takes approximately 12 seconds.
-* Displaying intermediate results as they arrive was essential for usability.
-* Final slicing of the top 30 candidates is deferred to the frontend, which polls Redis periodically.
+* Each batch takes ~12s.
+* Redis updated incrementally.
+* Frontend slices and shows top 30 only.
 
 ### LLM Token Limitations
-
-* Only 10 candidates are scored per batch to stay within token limits for GPT-4 variants.
+* Max 10 candidates per prompt.
 
 ### Prompt Consistency
-
-* The system uses few-shot examples to improve reliability.
-* Retry and JSON normalization logic ensures consistent parsing of OpenAI responses.
+* Few-shot examples and strict JSON format.
+* Fallback retry logic on invalid responses.
 
 ### Candidate Data Handling
-
-* Raw CSVs are transformed into a single `candidates.json` file at build time.
-* Data is flattened and deduplicated; only rows with both question and answer are included.
+* CSV normalized into `candidates.json` at build time.
+* Deduplicated and filtered rows with empty answers excluded.
 
 ### Type Integration Between Frontend and Backend
-
-* Types for FastAPI response models are generated using the backend's OpenAPI spec.
-* Developers must run `npm run generate:types` in the `app/` directory while the backend is running locally to generate `src/types/fastapi.d.ts`.
+* OpenAPI-based type generation.
+* Requires backend running locally to fetch schema.
 
 ### CI Integration
-
-* Both backend and frontend tests run in GitHub Actions.
-* Backend: `pytest -sv`
-* Frontend: `npm test`
+* GitHub Actions for both parts.
+* FastAPI tests with `pytest -sv`
+* Frontend with `npm test`
 
 ## Deployment Notes
 
-* **Frontend**: Deployed to Vercel
-* **Backend**: Deployed to Fly.io
-* **CI/CD**: GitHub Actions workflow runs unit tests for both components on push
+* **Frontend**: Vercel
+* **Backend**: Fly.io
+* **Redis**: Upstash
+* **CI/CD**: GitHub Actions
 
 ## Candidate Preprocessing
 
 **Input**: `app/assets/candidates.csv`
 **Output**: `app/public/candidates.json`
 
-Frontend Candidate Format:
-
+Frontend:
 ```ts
 interface Candidate {
   id: string;
@@ -134,8 +132,7 @@ interface Candidate {
 }
 ```
 
-Backend expects:
-
+Backend:
 ```json
 {
   "id": "string",
@@ -144,4 +141,4 @@ Backend expects:
 }
 ```
 
-Only non-empty answers are included; the `resume` is a flattened summary of all available fields.
+`resume` is built from all non-empty fields including Q&A where both are present.

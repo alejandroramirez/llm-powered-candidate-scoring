@@ -118,6 +118,9 @@ export default function HomePage() {
 				onChange={(e) => setJobDescription(e.target.value)}
 				disabled={loading}
 			/>
+			<p className="text-sm text-gray-500 mb-2">
+				{200 - jobDescription.length} characters left
+			</p>
 			<div className="flex space-x-2 mb-4">
 				<button
 					type="button"

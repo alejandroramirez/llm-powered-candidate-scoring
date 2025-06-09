@@ -1,5 +1,10 @@
 # LLM-Powered Candidate Scoring System
 
+> **Note**
+> This project was developed as part of a technical exercise. While it meets the stated requirements, it's worth noting that the approach—scoring all candidates using an LLM for each request—is not optimal for production-scale use. A more robust implementation would precompute embeddings for each candidate, encode the job description at query time, and perform a fast cosine similarity search to retrieve the top matches.
+>
+> I understand the original spec had some ambiguity, and this implementation adheres to the spirit of the challenge. This note is simply to acknowledge that I'm aware of more efficient architectures for similar real-world use cases.
+
 This project enables recruiters to input a job description and receive a ranked list of candidates scored by an LLM via a FastAPI backend. The frontend is built with Next.js 15 and deployed to Vercel; the backend is deployed to Fly.io.
 
 ![CI](https://github.com/alejandroramirez/llm-powered-candidate-scoring/actions/workflows/ci.yml/badge.svg)

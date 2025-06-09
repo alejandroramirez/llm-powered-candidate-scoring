@@ -33,6 +33,12 @@ export default function HomePage() {
 				body: JSON.stringify({ job_description: jobDescription }),
 			});
 
+			if (res.status === 429) {
+				setError("Too many requests. Please wait 3 seconds between requests.");
+				setLoading(false);
+				return;
+			}
+
 			if (!res.ok) throw new Error("Failed to start scoring job");
 
 			const { jobId } = await res.json();

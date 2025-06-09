@@ -30,6 +30,34 @@ const scoreRequestSchema = z.object({
 
 export async function POST(req: NextRequest) {
 	try {
+		// Extract client IP from headers or fallback to "unknown"
+		const clientIp =
+			req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+			req.headers.get("x-real-ip") ||
+			"unknown";
+
+		// Check last request time from Redis
+		const lastRequestKey = `ratelimit:${clientIp}`;
+		const lastRequest = await redis.get(lastRequestKey);
+		const now = Date.now();
+
+		if (lastRequest) {
+			const lastRequestTime = Number.parseInt(lastRequest, 10);
+			if (now - lastRequestTime < 3000) {
+				// Less than 3 seconds since last request, return 429
+				return NextResponse.json(
+					{
+						message:
+							"Too many requests. Please wait 3 seconds between requests.",
+					},
+					{ status: 429 },
+				);
+			}
+		}
+
+		// Update last request time
+		await redis.set(lastRequestKey, now.toString(), "EX", 10);
+
 		const body = await req.json();
 		const validated: ScoreRequest = scoreRequestSchema.parse(body);
 		const jd = validated.job_description;

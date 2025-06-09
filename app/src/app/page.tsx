@@ -150,7 +150,7 @@ export default function HomePage() {
 
 			{results.length > 0 && (
 				<div className="mt-6 space-y-4">
-					{results.map((candidate) => (
+					{results.slice(0, 30).map((candidate) => (
 						<div key={candidate.id} className="border p-4 rounded shadow">
 							<h2 className="text-lg font-semibold">
 								{candidate.name} ({candidate.score})

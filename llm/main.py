@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 
 from models import Candidate, ScoreRequest, ScoredCandidate
-from prompt_manager import score_candidates as llm_score_candidates  # your custom function
+from prompt_manager import score_candidates as llm_score_candidates
 
 logging.basicConfig(
     level=logging.DEBUG,

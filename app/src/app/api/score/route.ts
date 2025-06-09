@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import crypto from "node:crypto";
 import type { components } from "@/types/fastapi";
 import { type NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
@@ -9,6 +10,7 @@ const BACKEND_URL = process.env.LLM_BACKEND_URL || "http://localhost:8000";
 
 import Redis from "ioredis";
 const CACHE_TTL_SECONDS = 600; // 10 minutes
+const JOB_TTL_SECONDS = 3600; // 1 hour
 
 const redis = new Redis(process.env.REDIS_URL || "");
 
@@ -35,7 +37,44 @@ export async function POST(req: NextRequest) {
 		const jobId = randomUUID();
 		const jobKey = `scorejob:${jobId}`;
 
-		// Store initial job state in Redis
+		// Fetch all candidates early to check cache
+		const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+		const candidatesRes = await fetch(`${baseUrl}/candidates.json`);
+		if (!candidatesRes.ok) {
+			throw new Error("Failed to fetch candidates.json");
+		}
+		const allCandidates: Candidate[] = await candidatesRes.json();
+
+		// Create full cache key for all candidates and job description
+		const batchIds = allCandidates.map((c) => c.id).join(",");
+		const fullCacheKey = `fastapi_cache:${crypto
+			.createHash("sha256")
+			.update(jd + batchIds)
+			.digest("hex")}`;
+
+		// Check if full result is cached
+		const fullCached = await redis.get(fullCacheKey);
+
+		if (fullCached) {
+			// If cached, set job state immediately with full results and done=true
+			const cachedResults: ScoredCandidate[] = JSON.parse(fullCached);
+			await redis.set(
+				jobKey,
+				JSON.stringify({
+					progress: allCandidates.length,
+					total: allCandidates.length,
+					results: cachedResults,
+					done: true,
+				}),
+				"EX",
+				CACHE_TTL_SECONDS,
+			);
+
+			const response = NextResponse.json({ jobId }, { status: 202 });
+			return response;
+		}
+
+		// If not cached, store initial empty job state
 		await redis.set(
 			jobKey,
 			JSON.stringify({
@@ -53,14 +92,6 @@ export async function POST(req: NextRequest) {
 		// Schedule the background job after the response is sent
 		after(async () => {
 			try {
-				const baseUrl =
-					process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-				const candidatesRes = await fetch(`${baseUrl}/candidates.json`);
-				if (!candidatesRes.ok) {
-					throw new Error("Failed to fetch candidates.json");
-				}
-
-				const allCandidates: Candidate[] = await candidatesRes.json();
 				const batchSize = 10;
 				const total = allCandidates.length;
 				let processed = 0;
@@ -69,20 +100,44 @@ export async function POST(req: NextRequest) {
 				for (let i = 0; i < total; i += batchSize) {
 					const batch = allCandidates.slice(i, i + batchSize);
 
-					const fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({
-							job_description: jd,
-							candidates: batch,
-						}),
-					});
+					// Create a cache key based on job description and batch candidate IDs
+					const batchIds = batch.map((c) => c.id).join(",");
+					const cacheKey = `fastapi_cache:${crypto
+						.createHash("sha256")
+						.update(jd + batchIds)
+						.digest("hex")}`;
 
-					if (!fastApiRes.ok) {
-						throw new Error("FastAPI scoring failed");
+					// Try to get cached result from Redis
+					const cached = await redis.get(cacheKey);
+					let batchResults: ScoredCandidate[];
+
+					if (cached) {
+						batchResults = JSON.parse(cached);
+					} else {
+						const fastApiRes = await fetch(`${BACKEND_URL}/api/score`, {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								job_description: jd,
+								candidates: batch,
+							}),
+						});
+
+						if (!fastApiRes.ok) {
+							throw new Error("FastAPI scoring failed");
+						}
+
+						batchResults = await fastApiRes.json();
+
+						// Cache the result in Redis
+						await redis.set(
+							cacheKey,
+							JSON.stringify(batchResults),
+							"EX",
+							CACHE_TTL_SECONDS,
+						);
 					}
 
-					const batchResults: ScoredCandidate[] = await fastApiRes.json();
 					allResults = allResults.concat(batchResults);
 					processed += batch.length;
 
@@ -98,11 +153,19 @@ export async function POST(req: NextRequest) {
 							done: false,
 						}),
 						"EX",
-						CACHE_TTL_SECONDS,
+						JOB_TTL_SECONDS,
 					);
 				}
 
 				const finalSorted = [...allResults].sort((a, b) => b.score - a.score);
+
+				// Cache the full result for future requests
+				await redis.set(
+					fullCacheKey,
+					JSON.stringify(finalSorted),
+					"EX",
+					CACHE_TTL_SECONDS,
+				);
 
 				await redis.set(
 					jobKey,
@@ -126,7 +189,7 @@ export async function POST(req: NextRequest) {
 						error: err instanceof Error ? err.message : "Unknown error",
 					}),
 					"EX",
-					CACHE_TTL_SECONDS,
+					JOB_TTL_SECONDS,
 				);
 			}
 		});
@@ -174,5 +237,3 @@ export async function DELETE(req: NextRequest) {
 		);
 	}
 }
-
-// (removed: no longer needed, replaced by correct after() usage in POST)

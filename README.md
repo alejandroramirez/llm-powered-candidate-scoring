@@ -11,6 +11,7 @@ This project enables recruiters to input a job description and receive a ranked 
 
 Deployed on
 frontend: https://llm-powered-candidate-scoring.vercel.app/
+
 backend: https://llm-black-snowflake-7593.fly.dev/docs
 
 ## Project Structure

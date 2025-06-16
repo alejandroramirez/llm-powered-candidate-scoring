@@ -8,9 +8,7 @@ type Candidate = components["schemas"]["ScoredCandidate"] & {
 };
 
 export default function HomePage() {
-	const [jobDescription, setJobDescription] = useState(
-		"Seeking GoLang dev (2+ yrs) to write/test backend code, build scalable services, solve complex problems. Must have 5+ yrs experience, good English, team spirit, and strong problem-solving skills.",
-	);
+	const [jobDescription, setJobDescription] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [results, setResults] = useState<Candidate[]>([]);
@@ -109,6 +107,53 @@ export default function HomePage() {
 	return (
 		<main className="p-6 max-w-3xl mx-auto">
 			<h1 className="text-xl font-bold mb-4">LLM-Powered Candidate Scoring</h1>
+			{/* Sample JD Buttons */}
+			<div className="flex flex-wrap gap-2 mb-4">
+				<button
+					type="button"
+					className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded"
+					onClick={() =>
+						setJobDescription(
+							"Seeking GoLang dev (2+ yrs) to write/test backend code, build scalable services, solve complex problems. Must have 5+ yrs experience, good English, team spirit, and strong problem-solving skills.",
+						)
+					}
+					disabled={loading}
+				>
+					Sample GoLang JD
+				</button>
+				<button
+					type="button"
+					className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded"
+					onClick={() =>
+						setJobDescription(
+							"Hiring iOS developer (Swift, 2+ yrs) to build and maintain mobile apps. Must have 4+ yrs experience, strong UI/UX skills, teamwork, English proficiency, and problem-solving ability.",
+						)
+					}
+					disabled={loading}
+				>
+					Sample iOS JD
+				</button>
+				<button
+					type="button"
+					className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded"
+					onClick={() =>
+						setJobDescription(
+							"React developer needed (2+ yrs) for building modern web apps. Must have 4+ yrs experience, strong JavaScript/TypeScript, teamwork, English skills, and excellent problem-solving ability.",
+						)
+					}
+					disabled={loading}
+				>
+					Sample React JD
+				</button>
+				<button
+					type="button"
+					className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded border"
+					onClick={() => setJobDescription("")}
+					disabled={loading}
+				>
+					x clear JD
+				</button>
+			</div>
 			<textarea
 				className="w-full border p-2 mb-4"
 				maxLength={200}

@@ -9,7 +9,7 @@ import { z } from "zod";
 const BACKEND_URL = process.env.LLM_BACKEND_URL || "http://localhost:8000";
 
 import Redis from "ioredis";
-const CACHE_TTL_SECONDS = 600; // 10 minutes
+const CACHE_TTL_SECONDS = 1200; // 20 minutes
 const JOB_TTL_SECONDS = 3600; // 1 hour
 
 const redis = new Redis(process.env.REDIS_URL || "");
